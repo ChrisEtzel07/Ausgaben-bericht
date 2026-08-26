@@ -341,7 +341,7 @@
   // ---- Laden von Google Sheets oder LocalStorage ----
   async function loadEntries(){
     // 1. Versuch: Live-Daten von Google Sheets abrufen
-    if(GOOGLE_SHEET_CSV_URL && !GOOGLE_SHEET_CSV_URL.includes('DEIN_GOOGLE_SHEET_CSV_LINK_HIER_EINFÜGEN')){
+    if(GOOGLE_SHEET_CSV_URL && !GOOGLE_SHEET_CSV_URL.includes('https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv')){
       try {
         const res = await fetch(GOOGLE_SHEET_CSV_URL);
         if(!res.ok) throw new Error('HTTP-Fehler Status: ' + res.status);
