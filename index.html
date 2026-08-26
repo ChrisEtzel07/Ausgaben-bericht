@@ -312,9 +312,9 @@
 <script>
 (function(){
   // ------------------------------------------------------------------
-  // 1. Kopiére deinen veröffentlichten Google Sheet CSV-Link hierhin:
+  // Dein Google Sheet CSV-Link:
   // ------------------------------------------------------------------
-  const GOOGLE_SHEET_CSV_URL = 'DEIN_GOOGLE_SHEET_CSV_LINK_HIER_EINFÜGEN';
+  const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv';
 
   const STORAGE_KEY = 'mediaausgaben:entries';
   let entries = [];
@@ -341,7 +341,7 @@
   // ---- Laden von Google Sheets oder LocalStorage ----
   async function loadEntries(){
     // 1. Versuch: Live-Daten von Google Sheets abrufen
-    if(GOOGLE_SHEET_CSV_URL && !GOOGLE_SHEET_CSV_URL.includes('https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv')){
+    if(GOOGLE_SHEET_CSV_URL && GOOGLE_SHEET_CSV_URL.startsWith('http')){
       try {
         const res = await fetch(GOOGLE_SHEET_CSV_URL);
         if(!res.ok) throw new Error('HTTP-Fehler Status: ' + res.status);
@@ -357,7 +357,7 @@
       }
     }
 
-    // 2. Fallback: Aus localStorage laden, falls kein Google-Sheet-Link konfiguriert ist
+    // 2. Fallback: Aus localStorage laden
     try{
       const stored = localStorage.getItem(STORAGE_KEY);
       entries = stored ? JSON.parse(stored) : [];
