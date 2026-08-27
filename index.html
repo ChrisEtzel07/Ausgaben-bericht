@@ -221,6 +221,17 @@
 }
 .dropdown-item:hover { background: var(--teal-soft); }
 .dropdown-item input[type="checkbox"] { cursor: pointer; width: 15px; height: 15px; }
+
+
+@media print {
+  .filter-bar, .tab-btn, button, .custom-dropdown, .export-actions {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -277,6 +288,12 @@
         <div class="dropdown-content" id="listThema"></div>
       </div>
     </div>
+
+<div class="export-actions">
+  <button type="button" onclick="window.print()">📄 Als PDF / Drucken</button>
+  <button type="button" onclick="window.exportCSV()">📥 CSV herunterladen</button>
+</div>
+
 <!-- DROPDOWN FÜR JAHR -->
 <div class="dropdown-wrapper">
   <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Jahr:</span>
@@ -436,6 +453,27 @@
     const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
     return d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   }
+
+// ---- CSV Export ----
+  window.exportCSV = function() {
+    const filtered = getFilteredEntries();
+    if (!filtered || !filtered.length) {
+      if (typeof showToast === 'function') showToast('Keine Daten zum Exportieren');
+      return;
+    }
+
+    let csv = 'Datum;Medium;Thema;Brutto;Netto\n';
+    filtered.forEach(e => {
+      csv += `"${e.datum || ''}";"${e.medium || ''}";"${e.thema || ''}";"${e.brutto || 0}";"${e.netto || 0}"\n`;
+    });
+
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Export_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  };
+
 
   // ---- Jahreswechsel per Dropdown ----
   window.loadDataForYear = async function(year) {
