@@ -738,15 +738,15 @@
 
     if(!chartsAvailable()){ return; }
 
-    // --- TORTENDIAGRAMM FÜR MEDIEN (Top 5 + Sonstiges) ---
+    // --- TORTENDIAGRAMM FÜR MEDIEN (Top 10 + Sonstiges) ---
     let pieData = [...mediumRows];
-    if(pieData.length > 5){
-      const top5 = pieData.slice(0, 5);
-      const sonstigesSum = pieData.slice(5).reduce((sum, r) => sum + r[1], 0);
+    if(pieData.length > 10){
+      const top10 = pieData.slice(0, 10);
+      const sonstigesSum = pieData.slice(10).reduce((sum, r) => sum + r[1], 0);
       if(sonstigesSum > 0){
-        top5.push(['Sonstiges', sonstigesSum]);
+        top10.push(['Sonstiges', sonstigesSum]);
       }
-      pieData = top5;
+      pieData = top10;
     }
 
     const mediumCtx = document.getElementById('mediumChart');
@@ -759,12 +759,9 @@
           datasets: [{
             data: pieData.map(r => r[1]),
             backgroundColor: [
-              '#0F6E6A',
-              '#D98E2B',
-              '#2E5B88',
-              '#E76F51',
-              '#2A9D8F',
-              '#95A5A6'
+              '#0F6E6A', '#D98E2B', '#2E5B88', '#E76F51', '#2A9D8F',
+              '#E9C46A', '#F4A261', '#457B9D', '#1D3557', '#8E44AD',
+              '#95A5A6' // Farbe für Sonstiges
             ],
             borderWidth: 2,
             borderColor: '#ffffff'
@@ -776,7 +773,7 @@
           plugins: {
             legend: {
               position: 'bottom',
-              labels: { boxWidth: 12, font: { size: 12 } }
+              labels: { boxWidth: 12, font: { size: 11 } }
             },
             tooltip: {
               callbacks: {
