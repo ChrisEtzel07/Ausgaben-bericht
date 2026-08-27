@@ -394,83 +394,33 @@
 <div class="toast" id="toast"></div>
 
 <script>
-
-// Hilfsfunktion: Wandelt YYYY-MM in Monatsname (z. B. "Januar 2026") um
-function monthNameFull(ym) {
-  if (!ym) return '—';
-  const [y, m] = ym.split('-');
-  const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
-  return d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-}
-
-// Rendert die Tabelle unter dem Verlaufsdiagramm
-function renderVerlaufTable(activeEntries, selectedMonth) {
-  const container = document.getElementById('verlaufTableWrap');
-  if (!container) return;
-
-  const filtered = (selectedMonth === 'all' || !selectedMonth)
-    ? activeEntries
-    : activeEntries.filter(e => e.datum && e.datum.startsWith(selectedMonth));
-
-  if (filtered.length === 0) {
-    container.innerHTML = '<p class="empty-state">Keine Buchungen für diesen Zeitraum gefunden.</p>';
-    return;
-  }
-
-  const sorted = [...filtered].sort((a, b) => (b.datum || '').localeCompare(a.datum || ''));
-  const monthTotal = filtered.reduce((s, e) => s + (Number(e.brutto) || 0), 0);
-
-  let html = `<table class="data-table"><thead><tr>
-    <th>Datum</th><th>Medium</th><th>Thema</th><th class="num">Brutto</th><th class="num">Netto</th>
-  </tr></thead><tbody>`;
-
-  sorted.forEach(e => {
-    html += `<tr>
-      <td>${fmtDateDisplay(e.datum)}</td>
-      <td>${escapeHtml(e.medium)}</td>
-      <td>${escapeHtml(e.thema)}</td>
-      <td class="num">${eurFull.format(Number(e.brutto) || 0)}</td>
-      <td class="num">${eurFull.format(Number(e.netto) || 0)}</td>
-    </tr>`;
-  });
-
-  html += `</tbody>
-  <tfoot>
-    <tr style="font-weight: bold; background: var(--teal-soft);">
-      <td colspan="3">Summe (${selectedMonth === 'all' ? 'Alle Monate' : monthNameFull(selectedMonth)})</td>
-      <td class="num">${eurFull.format(monthTotal)}</td>
-      <td></td>
-    </tr>
-  </tfoot>
-  </table>`;
-
-  container.innerHTML = html;
-}
-
 (function(){
   // Basis-URL deiner veröffentlichten Google-Tabelle
   const GOOGLE_SHEET_BASE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv';
 
-  // Hier die GID für jedes Tabellenblatt eintragen (steht in der URL von Google Sheets hinter #gid=)
+  // Hier die GID für jedes Tabellenblatt eintragen
   const YEAR_GIDS = {
-    '2026': '0',        // Ersetze '0' durch die echte GID von 2026
-    '2025': '314738069', // Ersetze '12345678' durch die echte GID von 2025
-    '2024': '362499645'  // Ersetze '87654321' durch die echte GID von 2024
+    '2026': '0',        // Ersetze durch die echte GID für 2026
+    '2025': '12345678', // Ersetze durch die echte GID für 2025
+    '2024': '87654321'  // Ersetze durch die echte GID für 2024
   };
 
-  const STORAGE_KEY = 'mediaausgaben:entries';
   let entries = [];
   let mediumChartInst = null, verlaufChartInst = null;
 
   const eur = new Intl.NumberFormat('de-DE', { style:'currency', currency:'EUR', maximumFractionDigits: 0 });
   const eurFull = new Intl.NumberFormat('de-DE', { style:'currency', currency:'EUR' });
 
-  document.getElementById('standDate').textContent = 'Stand: ' + new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const standEl = document.getElementById('standDate');
+  if (standEl) {
+    standEl.textContent = 'Stand: ' + new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+  }
 
   function uid(){ return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 
   function showToast(msg){
     const t = document.getElementById('toast');
+    if (!t) return;
     t.textContent = msg; t.classList.add('show');
     clearTimeout(showToast._t);
     showToast._t = setTimeout(()=> t.classList.remove('show'), 2400);
@@ -478,6 +428,13 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
 
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function monthNameFull(ym) {
+    if (!ym) return '—';
+    const [y, m] = ym.split('-');
+    const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+    return d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   }
 
   // ---- Jahreswechsel per Dropdown ----
@@ -495,7 +452,7 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
       if(!res.ok) throw new Error('Status: ' + res.status);
       const csvText = await res.text();
       
-      entries = []; // Vorherige Einträge leeren
+      entries = [];
       parseTable(csvText);
       populateFilterDropdowns();
       renderAll();
@@ -506,9 +463,10 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
     }
   };
 
-  // ---- Dropdown UI Functions ----
+  // ---- Dropdown UI ----
   window.toggleDropdown = function(id) {
     const el = document.getElementById(id);
+    if (!el) return;
     const isOpen = el.classList.contains('open');
     document.querySelectorAll('.custom-dropdown').forEach(d => d.classList.remove('open'));
     if(!isOpen) el.classList.add('open');
@@ -580,11 +538,12 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
       document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active'); btn.setAttribute('aria-selected','true');
-      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      const target = document.getElementById('panel-' + btn.dataset.tab);
+      if (target) target.classList.add('active');
     });
   });
 
-  // ---- Parsing helpers ----
+  // ---- Parsing ----
   function detectDelimiter(line){
     const counts = { '\t': (line.match(/\t/g)||[]).length, ';': (line.match(/;/g)||[]).length, ',': (line.match(/,/g)||[]).length };
     const max = Math.max(counts['\t'], counts[';'], counts[',']);
@@ -674,26 +633,6 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
     return { added, skipped };
   }
 
-  function runImport(raw){
-    const msgEl = document.getElementById('importMsg');
-    const { added, skipped } = parseTable(raw);
-    if(added > 0){
-      populateFilterDropdowns();
-      renderAll();
-    }
-    msgEl.className = added === 0 ? 'import-msg error' : 'import-msg';
-    msgEl.textContent = added > 0
-      ? `${added} Buchung${added===1?'':'en'} importiert${skipped ? `, ${skipped} übersprungen` : ''}.`
-      : 'Konnte keine gültigen Zeilen erkennen.';
-  }
-
-  document.getElementById('importBtn')?.addEventListener('click', () => {
-    const raw = document.getElementById('pasteArea').value;
-    if(!raw.trim()) return;
-    runImport(raw);
-    document.getElementById('pasteArea').value = '';
-  });
-
   // ---- Aggregation ----
   function groupSum(items, key, valueKey){
     const map = new Map();
@@ -720,7 +659,7 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
     return d.toLocaleDateString('de-DE', { month:'short', year:'2-digit' });
   }
 
-  // ---- Render ----
+  // ---- Render Functions ----
   function renderGroupTable(container, rows, total, labelHeader){
     if(!container) return;
     if(rows.length === 0){
@@ -779,13 +718,56 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
     container.innerHTML = html;
   }
 
+  function renderVerlaufTable(activeEntries, selectedMonth) {
+    const container = document.getElementById('verlaufTableWrap');
+    if (!container) return;
+
+    const filtered = (selectedMonth === 'all' || !selectedMonth)
+      ? activeEntries
+      : activeEntries.filter(e => e.datum && e.datum.startsWith(selectedMonth));
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<p class="empty-state">Keine Buchungen für diesen Zeitraum gefunden.</p>';
+      return;
+    }
+
+    const sorted = [...filtered].sort((a, b) => (b.datum || '').localeCompare(a.datum || ''));
+    const monthTotal = filtered.reduce((s, e) => s + (Number(e.brutto) || 0), 0);
+
+    let html = `<table class="data-table"><thead><tr>
+      <th>Datum</th><th>Medium</th><th>Thema</th><th class="num">Brutto</th><th class="num">Netto</th>
+    </tr></thead><tbody>`;
+
+    sorted.forEach(e => {
+      html += `<tr>
+        <td>${fmtDateDisplay(e.datum)}</td>
+        <td>${escapeHtml(e.medium)}</td>
+        <td>${escapeHtml(e.thema)}</td>
+        <td class="num">${eurFull.format(Number(e.brutto) || 0)}</td>
+        <td class="num">${eurFull.format(Number(e.netto) || 0)}</td>
+      </tr>`;
+    });
+
+    html += `</tbody>
+    <tfoot>
+      <tr style="font-weight: bold; background: var(--teal-soft);">
+        <td colspan="3">Summe (${selectedMonth === 'all' ? 'Alle Monate' : monthNameFull(selectedMonth)})</td>
+        <td class="num">${eurFull.format(monthTotal)}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+    </table>`;
+
+    container.innerHTML = html;
+  }
+
   function renderCharts(activeEntries, totalBrutto){
     const mediumRows = groupSum(activeEntries, 'medium', 'brutto');
     renderGroupTable(document.getElementById('mediumTableWrap'), mediumRows, totalBrutto, 'Medium');
 
     if(typeof Chart === 'undefined') return;
 
-    // Top 10 + Sonstiges
+    // Kuchen-Diagramm
     let pieData = [...mediumRows];
     if(pieData.length > 10){
       const top10 = pieData.slice(0, 10);
@@ -817,25 +799,16 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
       });
     }
 
-    // --- VERLAUFSDIAGRAMM & MONATSTABELLE ---
+    // Verlaufs-Diagramm & Monatstabelle
     const monthly = monthlySum(activeEntries);
     const verlaufCtx = document.getElementById('verlaufChart');
     const selectMonat = document.getElementById('selectMonat');
 
-    // Dropdown mit den verfügbaren Monaten befüllen
     if (selectMonat) {
-      const currentVal = selectMonat.value;
       const months = [...new Set(activeEntries.map(e => e.datum ? e.datum.slice(0,7) : null).filter(Boolean))].sort();
-      
       selectMonat.innerHTML = '<option value="all">Alle Monate</option>' + months.map(m => `
         <option value="${m}">${monthNameFull(m)}</option>
       `).join('');
-
-      if (months.includes(currentVal)) {
-        selectMonat.value = currentVal;
-      } else {
-        selectMonat.value = 'all';
-      }
 
       selectMonat.onchange = () => renderVerlaufTable(activeEntries, selectMonat.value);
     }
@@ -861,7 +834,6 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          // Klick auf Datenpunkt filtert die Tabelle unten direkt auf den Monat
           onClick: (evt, elements) => {
             if (elements.length > 0 && selectMonat) {
               const idx = elements[0].index;
@@ -882,31 +854,34 @@ function renderVerlaufTable(activeEntries, selectedMonth) {
       });
     }
 
-    // Tabelle initial zeichnen
     renderVerlaufTable(activeEntries, selectMonat ? selectMonat.value : 'all');
+  }
 
   function renderAll(){
     const activeEntries = getFilteredEntries();
     const totalBrutto = activeEntries.reduce((s,e) => s + (Number(e.brutto)||0), 0);
     const totalNetto = activeEntries.reduce((s,e) => s + (Number(e.netto)||0), 0);
 
-    document.getElementById('kpiBrutto').textContent = eur.format(totalBrutto);
-    document.getElementById('kpiNetto').textContent = eur.format(totalNetto);
-    document.getElementById('kpiCount').textContent = activeEntries.length;
-    document.getElementById('kpiAvg').textContent = eur.format(activeEntries.length ? totalBrutto/activeEntries.length : 0);
-    document.getElementById('entryCount').textContent = `${activeEntries.length} Buchung${activeEntries.length===1?'':'en'}`;
+    const elBrutto = document.getElementById('kpiBrutto'); if(elBrutto) elBrutto.textContent = eur.format(totalBrutto);
+    const elNetto = document.getElementById('kpiNetto'); if(elNetto) elNetto.textContent = eur.format(totalNetto);
+    const elCount = document.getElementById('kpiCount'); if(elCount) elCount.textContent = activeEntries.length;
+    const elAvg = document.getElementById('kpiAvg'); if(elAvg) elAvg.textContent = eur.format(activeEntries.length ? totalBrutto/activeEntries.length : 0);
+    const elEntries = document.getElementById('entryCount'); if(elEntries) elEntries.textContent = `${activeEntries.length} Buchung${activeEntries.length===1?'':'en'}`;
 
     const dates = activeEntries.map(e => e.datum).filter(Boolean).sort();
-    document.getElementById('dateRange').textContent = dates.length
-      ? `Zeitraum: ${fmtDateDisplay(dates[0])} – ${fmtDateDisplay(dates[dates.length-1])}`
-      : '';
+    const elRange = document.getElementById('dateRange');
+    if (elRange) {
+      elRange.textContent = dates.length
+        ? `Zeitraum: ${fmtDateDisplay(dates[0])} – ${fmtDateDisplay(dates[dates.length-1])}`
+        : '';
+    }
 
     renderCharts(activeEntries, totalBrutto);
     renderGroupTable(document.getElementById('themaContent'), groupSum(activeEntries, 'thema','brutto'), totalBrutto, 'Thema');
     renderAlle(activeEntries);
   }
 
-  // Erstes Jahr beim Laden automatisch aufrufen (z.B. 2025)
+  // Initialer Startwert: 2026
   const selectJahr = document.getElementById('selectJahr');
   const initialYear = selectJahr ? selectJahr.value : '2026';
   window.loadDataForYear(initialYear);
