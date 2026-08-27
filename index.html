@@ -376,42 +376,16 @@
 <div class="toast" id="toast"></div>
 
 <script>
-
-// Base-URL deiner veröffentlichten Google-Tabelle (ohne &gid=...)
-const SHEET_BASE_URL = 'https://docs.google.com/spreadsheets/d/e/DEINE_SHEET_ID_HIER/pub?output=csv';
-
-// Zuordnung: Jahr -> GID aus der Browser-Adresse in Google Sheets
-const YEAR_GIDS = {
-  '2026': '0', // GID vom Tabellenblatt 2026
-  '2025': '314738069',         // GID vom Tabellenblatt 2025 (meist 0 beim 1. Tab)
-  '2024': '362499645'  // GID vom Tabellenblatt 2024
-};
-
-// Funktion zum Laden der Daten für ein bestimmtes Jahr
-async function loadDataForYear(year) {
-  const gid = YEAR_GIDS[year];
-  if (!gid) {
-    showToast(`Keine Daten-ID für das Jahr ${year} hinterlegt.`);
-    return;
-  }
-
-  const url = `${SHEET_BASE_URL}&gid=${gid}`;
-
-  try {
-    const response = await fetch(url);
-    const csvText = await response.text();
-    
-    // Ruft deine bestehende Import- & Parse-Funktion auf
-    parseCSVAndRender(csvText); 
-    showToast(`Daten für ${year} geladen.`);
-  } catch (error) {
-    console.error('Fehler beim Laden:', error);
-    showToast('Fehler beim Abrufen der Tabellendaten.');
-  }
-}
-
 (function(){
-  const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv';
+  // Basis-URL deiner veröffentlichten Google-Tabelle
+  const GOOGLE_SHEET_BASE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv';
+
+  // Hier die GID für jedes Tabellenblatt eintragen (steht in der URL von Google Sheets hinter #gid=)
+  const YEAR_GIDS = {
+    '2026': '0',        // Ersetze '0' durch die echte GID von 2026
+    '2025': '12345678', // Ersetze '12345678' durch die echte GID von 2025
+    '2024': '87654321'  // Ersetze '87654321' durch die echte GID von 2024
+  };
 
   const STORAGE_KEY = 'mediaausgaben:entries';
   let entries = [];
@@ -434,6 +408,32 @@ async function loadDataForYear(year) {
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+
+  // ---- Jahreswechsel per Dropdown ----
+  window.loadDataForYear = async function(year) {
+    const gid = YEAR_GIDS[year];
+    if (!gid && gid !== '0') {
+      showToast(`Keine GID für ${year} hinterlegt.`);
+      return;
+    }
+
+    const fetchUrl = `${GOOGLE_SHEET_BASE_URL}&single=true&gid=${gid}`;
+
+    try {
+      const res = await fetch(fetchUrl);
+      if(!res.ok) throw new Error('Status: ' + res.status);
+      const csvText = await res.text();
+      
+      entries = []; // Vorherige Einträge leeren
+      parseTable(csvText);
+      populateFilterDropdowns();
+      renderAll();
+      showToast(`Daten für ${year} geladen`);
+    } catch(err) {
+      console.error('Fehler beim Laden des Jahres:', err);
+      showToast(`Fehler beim Laden der Daten für ${year}`);
+    }
+  };
 
   // ---- Dropdown UI Functions ----
   window.toggleDropdown = function(id) {
@@ -502,39 +502,6 @@ async function loadDataForYear(year) {
     document.querySelectorAll('.filter-med-cb, .filter-them-cb').forEach(cb => cb.checked = false);
     window.updateFilterUI();
   });
-
-  // ---- Laden von Google Sheets ----
-  async function loadEntries(){
-    if(GOOGLE_SHEET_CSV_URL && GOOGLE_SHEET_CSV_URL.startsWith('http')){
-      try {
-        const res = await fetch(GOOGLE_SHEET_CSV_URL);
-        if(!res.ok) throw new Error('HTTP-Fehler Status: ' + res.status);
-        const csvText = await res.text();
-        entries = [];
-        parseTable(csvText);
-        populateFilterDropdowns();
-        renderAll();
-        showToast('Daten live aus Google Sheets geladen');
-        return;
-      } catch(err){
-        console.error('Fehler beim Abrufen der Google-Tabelle:', err);
-        showToast('Fehler beim Laden des Google Sheets.');
-      }
-    }
-
-    try{
-      const stored = localStorage.getItem(STORAGE_KEY);
-      entries = stored ? JSON.parse(stored) : [];
-      populateFilterDropdowns();
-    }catch(err){ entries = []; }
-    renderAll();
-  }
-
-  async function persist(){
-    try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    }catch(err){ showToast('Speichern fehlgeschlagen.'); }
-  }
 
   // ---- Tabs ----
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -641,58 +608,20 @@ async function loadDataForYear(year) {
     const { added, skipped } = parseTable(raw);
     if(added > 0){
       populateFilterDropdowns();
-      persist(); 
       renderAll();
     }
     msgEl.className = added === 0 ? 'import-msg error' : 'import-msg';
     msgEl.textContent = added > 0
       ? `${added} Buchung${added===1?'':'en'} importiert${skipped ? `, ${skipped} übersprungen` : ''}.`
-      : 'Konnte keine gültigen Zeilen erkennen. Bitte Spalten Datum, Medium, Thema, Betrag prüfen.';
+      : 'Konnte keine gültigen Zeilen erkennen.';
   }
 
-  document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importBtn')?.addEventListener('click', () => {
     const raw = document.getElementById('pasteArea').value;
-    if(!raw.trim()){ 
-      const msgEl = document.getElementById('importMsg');
-      msgEl.className = 'import-msg error';
-      msgEl.textContent = 'Bitte zuerst eine Tabelle einfügen.';
-      return;
-    }
+    if(!raw.trim()) return;
     runImport(raw);
     document.getElementById('pasteArea').value = '';
   });
-
-  document.getElementById('clearBtn').addEventListener('click', () => {
-    if(!confirm('Wirklich alle importierten Buchungen löschen?')) return;
-    entries = [];
-    populateFilterDropdowns();
-    persist(); renderAll();
-    showToast('Alle Daten gelöscht.');
-  });
-
-  // ---- File upload ----
-  const dropzone = document.getElementById('dropzone');
-  const fileInput = document.getElementById('fileInput');
-  dropzone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => { if(e.target.files[0]) readFile(e.target.files[0]); });
-  ['dragover','dragenter'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); }));
-  ['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); }));
-  dropzone.addEventListener('drop', (e) => {
-    const file = e.dataTransfer.files[0];
-    if(file) readFile(file);
-  });
-  function readFile(file){
-    const reader = new FileReader();
-    reader.onload = (ev) => runImport(ev.target.result);
-    reader.onerror = () => showToast('Datei konnte nicht gelesen werden.');
-    reader.readAsText(file, 'UTF-8');
-  }
-
-  function deleteEntry(id){
-    entries = entries.filter(e => e.id !== id);
-    populateFilterDropdowns();
-    persist(); renderAll();
-  }
 
   // ---- Aggregation ----
   function groupSum(items, key, valueKey){
@@ -722,6 +651,7 @@ async function loadDataForYear(year) {
 
   // ---- Render ----
   function renderGroupTable(container, rows, total, labelHeader){
+    if(!container) return;
     if(rows.length === 0){
       container.innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
       return;
@@ -746,6 +676,7 @@ async function loadDataForYear(year) {
 
   function renderAlle(activeEntries){
     const container = document.getElementById('alleContent');
+    if(!container) return;
     if(activeEntries.length === 0){
       container.innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
       return;
@@ -754,7 +685,7 @@ async function loadDataForYear(year) {
     const totalBruttoFiltered = activeEntries.reduce((sum, e) => sum + (Number(e.brutto)||0), 0);
 
     let html = `<table class="data-table"><thead><tr>
-      <th>Datum</th><th>Medium</th><th>Thema</th><th class="num">Brutto</th><th class="num">Netto</th><th></th>
+      <th>Datum</th><th>Medium</th><th>Thema</th><th class="num">Brutto</th><th class="num">Netto</th>
     </tr></thead><tbody>`;
     sorted.forEach(e => {
       html += `<tr>
@@ -763,7 +694,6 @@ async function loadDataForYear(year) {
         <td>${escapeHtml(e.thema)}</td>
         <td class="num">${eurFull.format(Number(e.brutto)||0)}</td>
         <td class="num">${eurFull.format(Number(e.netto)||0)}</td>
-        <td><button class="btn-danger" data-id="${e.id}">Löschen</button></td>
       </tr>`;
     });
     html += `</tbody>
@@ -771,97 +701,70 @@ async function loadDataForYear(year) {
       <tr style="font-weight: bold; background: var(--teal-soft);">
         <td colspan="3">Gesamtsumme (gefiltert)</td>
         <td class="num">${eurFull.format(totalBruttoFiltered)}</td>
-        <td colspan="2"></td>
+        <td></td>
       </tr>
     </tfoot>
     </table>`;
     container.innerHTML = html;
-    container.querySelectorAll('.btn-danger').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.id)));
   }
-
-  function chartsAvailable(){ return typeof Chart !== 'undefined'; }
 
   function renderCharts(activeEntries, totalBrutto){
     const mediumRows = groupSum(activeEntries, 'medium', 'brutto');
     renderGroupTable(document.getElementById('mediumTableWrap'), mediumRows, totalBrutto, 'Medium');
 
-    if(!chartsAvailable()){ return; }
+    if(typeof Chart === 'undefined') return;
 
-    // --- TORTENDIAGRAMM FÜR MEDIEN (Top 10 + Sonstiges) ---
+    // Top 10 + Sonstiges
     let pieData = [...mediumRows];
     if(pieData.length > 10){
       const top10 = pieData.slice(0, 10);
       const sonstigesSum = pieData.slice(10).reduce((sum, r) => sum + r[1], 0);
-      if(sonstigesSum > 0){
-        top10.push(['Sonstiges', sonstigesSum]);
-      }
+      if(sonstigesSum > 0) top10.push(['Sonstiges', sonstigesSum]);
       pieData = top10;
     }
 
     const mediumCtx = document.getElementById('mediumChart');
     if(mediumChartInst) mediumChartInst.destroy();
-    if(pieData.length > 0){
+    if(pieData.length > 0 && mediumCtx){
       mediumChartInst = new Chart(mediumCtx, {
         type: 'pie',
         data: {
           labels: pieData.map(r => r[0]),
           datasets: [{
             data: pieData.map(r => r[1]),
-            backgroundColor: [
-              '#0F6E6A', '#D98E2B', '#2E5B88', '#E76F51', '#2A9D8F',
-              '#E9C46A', '#F4A261', '#457B9D', '#1D3557', '#8E44AD',
-              '#95A5A6' // Farbe für Sonstiges
-            ],
-            borderWidth: 2,
-            borderColor: '#ffffff'
+            backgroundColor: ['#0F6E6A','#D98E2B','#2E5B88','#E76F51','#2A9D8F','#E9C46A','#F4A261','#457B9D','#1D3557','#8E44AD','#95A5A6'],
+            borderWidth: 2, borderColor: '#ffffff'
           }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false,
           plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { boxWidth: 12, font: { size: 11 } }
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const val = ctx.parsed;
-                  const pct = totalBrutto > 0 ? ((val / totalBrutto) * 100).toFixed(1) : 0;
-                  return ` ${ctx.label}: ${eurFull.format(val)} (${pct}%)`;
-                }
-              }
-            }
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+            tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${eurFull.format(ctx.parsed)} (${totalBrutto > 0 ? ((ctx.parsed/totalBrutto)*100).toFixed(1) : 0}%)` } }
           }
         }
       });
     }
 
-    // --- VERLAUFSDIAGRAMM ---
+    // Verlauf
     const monthly = monthlySum(activeEntries);
     const verlaufCtx = document.getElementById('verlaufChart');
     if(verlaufChartInst) verlaufChartInst.destroy();
-    if(monthly.length > 0){
+    if(monthly.length > 0 && verlaufCtx){
       verlaufChartInst = new Chart(verlaufCtx, {
         type: 'line',
         data: {
           labels: monthly.map(r => monthLabel(r[0])),
           datasets: [{
-            label: 'Brutto pro Monat',
-            data: monthly.map(r => r[1]),
-            borderColor: '#D98E2B',
-            backgroundColor: 'rgba(217,142,43,0.15)',
+            label: 'Brutto pro Monat', data: monthly.map(r => r[1]),
+            borderColor: '#D98E2B', backgroundColor: 'rgba(217,142,43,0.15)',
             fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#D98E2B'
           }]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display:false }, tooltip: { callbacks: { label: (ctx) => eurFull.format(ctx.parsed.y) } } },
-          scales: {
-            y: { ticks: { callback: (v) => eur.format(v) }, grid: { color:'#E5E9EC' } },
-            x: { grid: { display:false } }
-          }
+          scales: { y: { ticks: { callback: (v) => eur.format(v) }, grid: { color:'#E5E9EC' } }, x: { grid: { display:false } } }
         }
       });
     }
@@ -883,21 +786,16 @@ async function loadDataForYear(year) {
       ? `Zeitraum: ${fmtDateDisplay(dates[0])} – ${fmtDateDisplay(dates[dates.length-1])}`
       : '';
 
-    function safe(fn){ try{ fn(); }catch(err){ console.error(err); } }
-
-    if(activeEntries.length === 0){
-      document.getElementById('mediumTableWrap').innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
-      document.getElementById('themaContent').innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
-      if(mediumChartInst){ mediumChartInst.destroy(); mediumChartInst = null; }
-      if(verlaufChartInst){ verlaufChartInst.destroy(); verlaufChartInst = null; }
-    } else {
-      safe(() => renderCharts(activeEntries, totalBrutto));
-      safe(() => renderGroupTable(document.getElementById('themaContent'), groupSum(activeEntries, 'thema','brutto'), totalBrutto, 'Thema'));
-    }
-    safe(() => renderAlle(activeEntries));
+    renderCharts(activeEntries, totalBrutto);
+    renderGroupTable(document.getElementById('themaContent'), groupSum(activeEntries, 'thema','brutto'), totalBrutto, 'Thema');
+    renderAlle(activeEntries);
   }
 
-  loadEntries();
+  // Erstes Jahr beim Laden automatisch aufrufen (z.B. 2025)
+  const selectJahr = document.getElementById('selectJahr');
+  const initialYear = selectJahr ? selectJahr.value : '2025';
+  window.loadDataForYear(initialYear);
+
 })();
 </script>
 </body>
