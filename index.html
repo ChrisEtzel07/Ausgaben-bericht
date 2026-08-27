@@ -230,23 +230,26 @@
     </div>
   </div>
 
-<!-- FILTER LEISTE -->
-<div style="background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow); display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
-  <span style="font-family:'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft);">Filter:</span>
-  
-  <label style="font-family:'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft);">Medium:
-    <select id="filterMedium" style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px; margin-left: 6px;">
-      <option value="">Alle Medien</option>
+<!-- MULTI-FILTER LEISTE -->
+<div style="background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow); display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+  <div>
+    <span style="font-family:'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 6px;">Medien wälen:</span>
+    <select id="filterMedium" multiple style="min-width: 200px; height: 90px; padding: 6px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px;">
     </select>
-  </label>
+  </div>
 
-  <label style="font-family:'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft);">Thema:
-    <select id="filterThema" style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px; margin-left: 6px;">
-      <option value="">Alle Themen</option>
+  <div>
+    <span style="font-family:'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 6px;">Themen wählen:</span>
+    <select id="filterThema" multiple style="min-width: 200px; height: 90px; padding: 6px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px;">
     </select>
-  </label>
+  </div>
 
-  <button id="resetFilterBtn" class="btn secondary" style="padding: 6px 12px; font-size: 12px; margin-left: auto;">Filter zurücksetzen</button>
+  <div style="margin-left: auto; align-self: flex-start;">
+    <button id="resetFilterBtn" class="btn secondary" style="padding: 6px 12px; font-size: 12px;">Filter zurücksetzen</button>
+    <div style="font-size: 11px; color: var(--ink-soft); margin-top: 6px;">
+      💡 <strong>Tipp:</strong> Halte <code>Strg</code> (Windows) oder <code>Cmd</code> (Mac) gedrückt, um mehrere Einträge auszuwählen.
+    </div>
+  </div>
 </div>
 
   <nav class="tabs" role="tablist">
@@ -354,31 +357,32 @@
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  // ---- Filter Logik ----
+  // ---- Multi-Filter Logik ----
   function populateFilterDropdowns(){
     const selMedium = document.getElementById('filterMedium');
     const selThema = document.getElementById('filterThema');
     if(!selMedium || !selThema) return;
 
-    const currMed = selMedium.value;
-    const currThem = selThema.value;
+    const selectedMedien = Array.from(selMedium.selectedOptions).map(o => o.value);
+    const selectedThemen = Array.from(selThema.selectedOptions).map(o => o.value);
 
     const medien = [...new Set(entries.map(e => e.medium).filter(Boolean))].sort();
     const themen = [...new Set(entries.map(e => e.thema).filter(Boolean))].sort();
 
-    selMedium.innerHTML = '<option value="">Alle Medien</option>' + 
-      medien.map(m => `<option value="${escapeHtml(m)}"${m===currMed?' selected':''}>${escapeHtml(m)}</option>`).join('');
-
-    selThema.innerHTML = '<option value="">Alle Themen</option>' + 
-      themen.map(t => `<option value="${escapeHtml(t)}"${t===currThem?' selected':''}>${escapeHtml(t)}</option>`).join('');
+    selMedium.innerHTML = medien.map(m => `<option value="${escapeHtml(m)}"${selectedMedien.includes(m)?' selected':''}>${escapeHtml(m)}</option>`).join('');
+    selThema.innerHTML = themen.map(t => `<option value="${escapeHtml(t)}"${selectedThemen.includes(t)?' selected':''}>${escapeHtml(t)}</option>`).join('');
   }
 
   function getFilteredEntries(){
-    const selMed = document.getElementById('filterMedium')?.value || '';
-    const selThem = document.getElementById('filterThema')?.value || '';
+    const selMedEl = document.getElementById('filterMedium');
+    const selThemEl = document.getElementById('filterThema');
+
+    const selectedMedien = selMedEl ? Array.from(selMedEl.selectedOptions).map(o => o.value) : [];
+    const selectedThemen = selThemEl ? Array.from(selThemEl.selectedOptions).map(o => o.value) : [];
+
     return entries.filter(e => {
-      const matchMed = !selMed || e.medium === selMed;
-      const matchThem = !selThem || e.thema === selThem;
+      const matchMed = selectedMedien.length === 0 || selectedMedien.includes(e.medium);
+      const matchThem = selectedThemen.length === 0 || selectedThemen.includes(e.thema);
       return matchMed && matchThem;
     });
   }
@@ -387,8 +391,10 @@
   document.getElementById('filterMedium')?.addEventListener('change', () => renderAll());
   document.getElementById('filterThema')?.addEventListener('change', () => renderAll());
   document.getElementById('resetFilterBtn')?.addEventListener('click', () => {
-    if(document.getElementById('filterMedium')) document.getElementById('filterMedium').value = '';
-    if(document.getElementById('filterThema')) document.getElementById('filterThema').value = '';
+    const selMed = document.getElementById('filterMedium');
+    const selThem = document.getElementById('filterThema');
+    if(selMed) Array.from(selMed.options).forEach(o => o.selected = false);
+    if(selThem) Array.from(selThem.options).forEach(o => o.selected = false);
     renderAll();
   });
 
