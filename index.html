@@ -255,43 +255,86 @@
     </div>
   </div>
 
-<!-- MULTI-CHECKBOX DROPDOWN LEISTE -->
-<div style="background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow); display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-  
-  <div class="dropdown-wrapper">
-    <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Medien:</span>
-    <div class="custom-dropdown" id="dropdownMedium">
-      <button type="button" class="dropdown-btn" onclick="window.toggleDropdown('dropdownMedium')">
-        <span id="labelMedium">Alle Medien</span> ▾
-      </button>
-      <div class="dropdown-content" id="listMedium"></div>
+  <!-- MULTI-CHECKBOX DROPDOWN LEISTE -->
+  <div style="background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow); display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+    
+    <div class="dropdown-wrapper">
+      <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Medien:</span>
+      <div class="custom-dropdown" id="dropdownMedium">
+        <button type="button" class="dropdown-btn" onclick="window.toggleDropdown('dropdownMedium')">
+          <span id="labelMedium">Alle Medien</span> ▾
+        </button>
+        <div class="dropdown-content" id="listMedium"></div>
+      </div>
     </div>
+
+    <div class="dropdown-wrapper">
+      <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Themen:</span>
+      <div class="custom-dropdown" id="dropdownThema">
+        <button type="button" class="dropdown-btn" onclick="window.toggleDropdown('dropdownThema')">
+          <span id="labelThema">Alle Themen</span> ▾
+        </button>
+        <div class="dropdown-content" id="listThema"></div>
+      </div>
+    </div>
+
+    <button id="resetFilterBtn" class="btn secondary" style="padding: 8px 14px; font-size: 12px; margin-left: auto;">Filter zurücksetzen</button>
   </div>
 
-  <div class="dropdown-wrapper">
-    <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Themen:</span>
-    <div class="custom-dropdown" id="dropdownThema">
-      <button type="button" class="dropdown-btn" onclick="window.toggleDropdown('dropdownThema')">
-        <span id="labelThema">Alle Themen</span> ▾
-      </button>
-      <div class="dropdown-content" id="listThema"></div>
-    </div>
-  </div>
-
-  <button id="resetFilterBtn" class="btn secondary" style="padding: 8px 14px; font-size: 12px; margin-left: auto;">Filter zurücksetzen</button>
-</div>
-
+  <!-- TAB LEISTE (Nach Medium als erstes & aktiv) -->
   <nav class="tabs" role="tablist">
-    <button class="tab-btn active" data-tab="erfassen" role="tab" aria-selected="true">Daten importieren</button>
-    <button class="tab-btn" data-tab="medium" role="tab" aria-selected="false">Nach Medium</button>
+    <button class="tab-btn active" data-tab="medium" role="tab" aria-selected="true">Nach Medium</button>
     <button class="tab-btn" data-tab="thema" role="tab" aria-selected="false">Nach Thema</button>
     <button class="tab-btn" data-tab="verlauf" role="tab" aria-selected="false">Zeitverlauf</button>
     <button class="tab-btn" data-tab="alle" role="tab" aria-selected="false">Alle Buchungen</button>
+    <button class="tab-btn" data-tab="erfassen" role="tab" aria-selected="false">Daten importieren</button>
   </nav>
 
   <main class="panels">
-    <!-- IMPORT -->
-    <section class="panel active" id="panel-erfassen">
+    
+    <!-- 1. MEDIUM (STARTSEITE & AKTIV) -->
+    <section class="panel active" id="panel-medium">
+      <h2 class="panel-title">Ausgaben nach Medium</h2>
+      <p class="panel-sub">Brutto-Ausgaben je Medium, absteigend sortiert.</p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: start;">
+        <!-- Linke Seite: Tabelle -->
+        <div id="mediumTableWrap"></div>
+
+        <!-- Rechte Seite: Tortendiagramm -->
+        <div class="chart-card">
+          <div class="chart-box">
+            <canvas id="mediumChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. THEMA -->
+    <section class="panel" id="panel-thema">
+      <h2 class="panel-title">Ausgaben nach Thema</h2>
+      <p class="panel-sub">Welche Themen/Kampagnen haben wie viel Budget beansprucht.</p>
+      <div id="themaContent"></div>
+    </section>
+
+    <!-- 3. VERLAUF -->
+    <section class="panel" id="panel-verlauf">
+      <h2 class="panel-title">Zeitverlauf</h2>
+      <p class="panel-sub">Monatliche Brutto-Ausgaben im Zeitverlauf.</p>
+      <div class="chart-card">
+        <div class="chart-box"><canvas id="verlaufChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- 4. ALLE BUCHUNGEN -->
+    <section class="panel" id="panel-alle">
+      <h2 class="panel-title">Alle Buchungen</h2>
+      <p class="panel-sub">Vollständige Liste aller importierten Einträge.</p>
+      <div id="alleContent"></div>
+    </section>
+
+    <!-- 5. IMPORT (AN LETZTER STELLE) -->
+    <section class="panel" id="panel-erfassen">
       <h2 class="panel-title">Tabelle importieren</h2>
       <p class="panel-sub">Erwartete Spalten: <strong>Datum, Medium, Thema, Betrag, Netto</strong> — Reihenfolge und genaue Schreibweise der Überschrift sind egal, sie werden automatisch erkannt.</p>
 
@@ -316,39 +359,6 @@
         </div>
       </div>
       <p class="import-msg" id="importMsg" style="margin-top:14px;"></p>
-    </section>
-
-    <!-- MEDIUM -->
-    <section class="panel" id="panel-medium">
-      <h2 class="panel-title">Ausgaben nach Medium</h2>
-      <p class="panel-sub">Brutto-Ausgaben je Medium, absteigend sortiert.</p>
-      <div class="chart-card">
-        <div class="chart-box"><canvas id="mediumChart"></canvas></div>
-      </div>
-      <div id="mediumTableWrap"></div>
-    </section>
-
-    <!-- THEMA -->
-    <section class="panel" id="panel-thema">
-      <h2 class="panel-title">Ausgaben nach Thema</h2>
-      <p class="panel-sub">Welche Themen/Kampagnen haben wie viel Budget beansprucht.</p>
-      <div id="themaContent"></div>
-    </section>
-
-    <!-- VERLAUF -->
-    <section class="panel" id="panel-verlauf">
-      <h2 class="panel-title">Zeitverlauf</h2>
-      <p class="panel-sub">Monatliche Brutto-Ausgaben im Zeitverlauf.</p>
-      <div class="chart-card">
-        <div class="chart-box"><canvas id="verlaufChart"></canvas></div>
-      </div>
-    </section>
-
-    <!-- ALLE -->
-    <section class="panel" id="panel-alle">
-      <h2 class="panel-title">Alle Buchungen</h2>
-      <p class="panel-sub">Vollständige Liste aller importierten Einträge.</p>
-      <div id="alleContent"></div>
     </section>
 
     <footer class="tally">
