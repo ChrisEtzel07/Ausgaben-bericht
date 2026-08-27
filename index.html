@@ -230,6 +230,25 @@
     </div>
   </div>
 
+<!-- FILTER LEISTE -->
+<div style="background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow); display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+  <span style="font-family:'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft);">Filter:</span>
+  
+  <label style="font-family:'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft);">Medium:
+    <select id="filterMedium" style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px; margin-left: 6px;">
+      <option value="">Alle Medien</option>
+    </select>
+  </label>
+
+  <label style="font-family:'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft);">Thema:
+    <select id="filterThema" style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px; margin-left: 6px;">
+      <option value="">Alle Themen</option>
+    </select>
+  </label>
+
+  <button id="resetFilterBtn" class="btn secondary" style="padding: 6px 12px; font-size: 12px; margin-left: auto;">Filter zurücksetzen</button>
+</div>
+
   <nav class="tabs" role="tablist">
     <button class="tab-btn active" data-tab="erfassen" role="tab" aria-selected="true">Daten importieren</button>
     <button class="tab-btn" data-tab="medium" role="tab" aria-selected="false">Nach Medium</button>
@@ -311,9 +330,6 @@
 
 <script>
 (function(){
-  // ------------------------------------------------------------------
-  // Dein Google Sheet CSV-Link:
-  // ------------------------------------------------------------------
   const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv';
 
   const STORAGE_KEY = 'mediaausgaben:entries';
@@ -338,16 +354,54 @@
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  // ---- Laden von Google Sheets oder LocalStorage ----
+  // ---- Filter Logik ----
+  function populateFilterDropdowns(){
+    const selMedium = document.getElementById('filterMedium');
+    const selThema = document.getElementById('filterThema');
+    if(!selMedium || !selThema) return;
+
+    const currMed = selMedium.value;
+    const currThem = selThema.value;
+
+    const medien = [...new Set(entries.map(e => e.medium).filter(Boolean))].sort();
+    const themen = [...new Set(entries.map(e => e.thema).filter(Boolean))].sort();
+
+    selMedium.innerHTML = '<option value="">Alle Medien</option>' + 
+      medien.map(m => `<option value="${escapeHtml(m)}"${m===currMed?' selected':''}>${escapeHtml(m)}</option>`).join('');
+
+    selThema.innerHTML = '<option value="">Alle Themen</option>' + 
+      themen.map(t => `<option value="${escapeHtml(t)}"${t===currThem?' selected':''}>${escapeHtml(t)}</option>`).join('');
+  }
+
+  function getFilteredEntries(){
+    const selMed = document.getElementById('filterMedium')?.value || '';
+    const selThem = document.getElementById('filterThema')?.value || '';
+    return entries.filter(e => {
+      const matchMed = !selMed || e.medium === selMed;
+      const matchThem = !selThem || e.thema === selThem;
+      return matchMed && matchThem;
+    });
+  }
+
+  // Event Listener für Filter
+  document.getElementById('filterMedium')?.addEventListener('change', () => renderAll());
+  document.getElementById('filterThema')?.addEventListener('change', () => renderAll());
+  document.getElementById('resetFilterBtn')?.addEventListener('click', () => {
+    if(document.getElementById('filterMedium')) document.getElementById('filterMedium').value = '';
+    if(document.getElementById('filterThema')) document.getElementById('filterThema').value = '';
+    renderAll();
+  });
+
+  // ---- Laden von Google Sheets ----
   async function loadEntries(){
-    // 1. Versuch: Live-Daten von Google Sheets abrufen
     if(GOOGLE_SHEET_CSV_URL && GOOGLE_SHEET_CSV_URL.startsWith('http')){
       try {
         const res = await fetch(GOOGLE_SHEET_CSV_URL);
         if(!res.ok) throw new Error('HTTP-Fehler Status: ' + res.status);
         const csvText = await res.text();
-        entries = []; // Vorherige Einträge leeren
+        entries = [];
         parseTable(csvText);
+        populateFilterDropdowns();
         renderAll();
         showToast('Daten live aus Google Sheets geladen');
         return;
@@ -357,10 +411,10 @@
       }
     }
 
-    // 2. Fallback: Aus localStorage laden
     try{
       const stored = localStorage.getItem(STORAGE_KEY);
       entries = stored ? JSON.parse(stored) : [];
+      populateFilterDropdowns();
     }catch(err){ entries = []; }
     renderAll();
   }
@@ -385,18 +439,14 @@
   function detectDelimiter(line){
     const counts = { '\t': (line.match(/\t/g)||[]).length, ';': (line.match(/;/g)||[]).length, ',': (line.match(/,/g)||[]).length };
     const max = Math.max(counts['\t'], counts[';'], counts[',']);
-    if(max === 0){
-      return /\s{2,}/.test(line) ? 'SPACE' : ',';
-    }
+    if(max === 0){ return /\s{2,}/.test(line) ? 'SPACE' : ','; }
     if(counts['\t'] === max) return '\t';
     if(counts[';'] === max) return ';';
     return ',';
   }
 
   function splitLine(line, delimiter){
-    if(delimiter === 'SPACE'){
-      return line.trim().split(/\s{2,}/).map(s => s.trim());
-    }
+    if(delimiter === 'SPACE'){ return line.trim().split(/\s{2,}/).map(s => s.trim()); }
     const result = [];
     let cur = '';
     let inQuotes = false;
@@ -406,17 +456,10 @@
         if(ch === '"'){
           if(line[i+1] === '"'){ cur += '"'; i++; }
           else { inQuotes = false; }
-        } else {
-          cur += ch;
-        }
-      } else if(ch === '"'){
-        inQuotes = true;
-      } else if(ch === delimiter){
-        result.push(cur);
-        cur = '';
-      } else {
-        cur += ch;
-      }
+        } else { cur += ch; }
+      } else if(ch === '"'){ inQuotes = true; }
+      else if(ch === delimiter){ result.push(cur); cur = ''; }
+      else { cur += ch; }
     }
     result.push(cur);
     return result.map(s => s.trim());
@@ -426,9 +469,7 @@
     if(raw == null) return NaN;
     let s = String(raw).trim().replace(/[€\s]/g,'');
     if(s === '') return NaN;
-    if(s.includes(',')){
-      s = s.replace(/\./g,'').replace(',', '.');
-    }
+    if(s.includes(',')){ s = s.replace(/\./g,'').replace(',', '.'); }
     return parseFloat(s);
   }
 
@@ -488,7 +529,9 @@
     const msgEl = document.getElementById('importMsg');
     const { added, skipped } = parseTable(raw);
     if(added > 0){
-      persist(); renderAll();
+      populateFilterDropdowns();
+      persist(); 
+      renderAll();
     }
     msgEl.className = added === 0 ? 'import-msg error' : 'import-msg';
     msgEl.textContent = added > 0
@@ -511,17 +554,16 @@
   document.getElementById('clearBtn').addEventListener('click', () => {
     if(!confirm('Wirklich alle importierten Buchungen löschen?')) return;
     entries = [];
+    populateFilterDropdowns();
     persist(); renderAll();
     showToast('Alle Daten gelöscht.');
   });
 
-  // ---- File upload / drag&drop ----
+  // ---- File upload ----
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
   dropzone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => {
-    if(e.target.files[0]) readFile(e.target.files[0]);
-  });
+  fileInput.addEventListener('change', (e) => { if(e.target.files[0]) readFile(e.target.files[0]); });
   ['dragover','dragenter'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); }));
   ['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); }));
   dropzone.addEventListener('drop', (e) => {
@@ -537,24 +579,25 @@
 
   function deleteEntry(id){
     entries = entries.filter(e => e.id !== id);
+    populateFilterDropdowns();
     persist(); renderAll();
   }
 
   // ---- Aggregation ----
-  function groupSum(key, valueKey){
+  function groupSum(items, key, valueKey){
     const map = new Map();
-    entries.forEach(e => {
+    items.forEach(e => {
       const k = e[key] || '—';
       map.set(k, (map.get(k) || 0) + (Number(e[valueKey]) || 0));
     });
     return Array.from(map.entries()).sort((a,b) => b[1]-a[1]);
   }
 
-  function monthlySum(){
+  function monthlySum(items){
     const map = new Map();
-    entries.forEach(e => {
+    items.forEach(e => {
       if(!e.datum) return;
-      const key = e.datum.slice(0,7); // YYYY-MM
+      const key = e.datum.slice(0,7);
       map.set(key, (map.get(key) || 0) + (Number(e.brutto) || 0));
     });
     return Array.from(map.entries()).sort((a,b) => a[0].localeCompare(b[0]));
@@ -569,7 +612,7 @@
   // ---- Render ----
   function renderGroupTable(container, rows, total, labelHeader){
     if(rows.length === 0){
-      container.innerHTML = '<p class="empty-state">Noch keine Daten vorhanden.</p>';
+      container.innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
       return;
     }
     const max = rows[0][1] || 1;
@@ -590,13 +633,15 @@
     container.innerHTML = html;
   }
 
-  function renderAlle(){
+  function renderAlle(activeEntries){
     const container = document.getElementById('alleContent');
-    if(entries.length === 0){
-      container.innerHTML = '<p class="empty-state">Noch keine Daten vorhanden.</p>';
+    if(activeEntries.length === 0){
+      container.innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
       return;
     }
-    const sorted = [...entries].sort((a,b) => (b.datum||'').localeCompare(a.datum||''));
+    const sorted = [...activeEntries].sort((a,b) => (b.datum||'').localeCompare(a.datum||''));
+    const totalBruttoFiltered = activeEntries.reduce((sum, e) => sum + (Number(e.brutto)||0), 0);
+
     let html = `<table class="data-table"><thead><tr>
       <th>Datum</th><th>Medium</th><th>Thema</th><th class="num">Brutto</th><th class="num">Netto</th><th></th>
     </tr></thead><tbody>`;
@@ -610,24 +655,26 @@
         <td><button class="btn-danger" data-id="${e.id}">Löschen</button></td>
       </tr>`;
     });
-    html += '</tbody></table>';
+    html += `</tbody>
+    <tfoot>
+      <tr style="font-weight: bold; background: var(--teal-soft);">
+        <td colspan="3">Gesamtsumme (gefiltert)</td>
+        <td class="num">${eurFull.format(totalBruttoFiltered)}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+    </table>`;
     container.innerHTML = html;
     container.querySelectorAll('.btn-danger').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.id)));
   }
 
   function chartsAvailable(){ return typeof Chart !== 'undefined'; }
 
-  function renderCharts(totalBrutto){
-    const mediumRows = groupSum('medium', 'brutto');
+  function renderCharts(activeEntries, totalBrutto){
+    const mediumRows = groupSum(activeEntries, 'medium', 'brutto');
     renderGroupTable(document.getElementById('mediumTableWrap'), mediumRows, totalBrutto, 'Medium');
 
-    if(!chartsAvailable()){
-      const note = '<p class="empty-state">Diagramm-Bibliothek nicht geladen.</p>';
-      document.getElementById('mediumChart').closest('.chart-card').querySelector('.chart-box').innerHTML = '';
-      const verlaufBox = document.getElementById('verlaufChart').closest('.chart-box');
-      verlaufBox.innerHTML = note;
-      return;
-    }
+    if(!chartsAvailable()){ return; }
 
     const mediumCtx = document.getElementById('mediumChart');
     if(mediumChartInst) mediumChartInst.destroy();
@@ -656,7 +703,7 @@
       });
     }
 
-    const monthly = monthlySum();
+    const monthly = monthlySum(activeEntries);
     const verlaufCtx = document.getElementById('verlaufChart');
     if(verlaufChartInst) verlaufChartInst.destroy();
     if(monthly.length > 0){
@@ -685,35 +732,35 @@
   }
 
   function renderAll(){
-    const totalBrutto = entries.reduce((s,e) => s + (Number(e.brutto)||0), 0);
-    const totalNetto = entries.reduce((s,e) => s + (Number(e.netto)||0), 0);
+    const activeEntries = getFilteredEntries();
+    const totalBrutto = activeEntries.reduce((s,e) => s + (Number(e.brutto)||0), 0);
+    const totalNetto = activeEntries.reduce((s,e) => s + (Number(e.netto)||0), 0);
 
     document.getElementById('kpiBrutto').textContent = eur.format(totalBrutto);
     document.getElementById('kpiNetto').textContent = eur.format(totalNetto);
-    document.getElementById('kpiCount').textContent = entries.length;
-    document.getElementById('kpiAvg').textContent = eur.format(entries.length ? totalBrutto/entries.length : 0);
-    document.getElementById('entryCount').textContent = `${entries.length} Buchung${entries.length===1?'':'en'}`;
+    document.getElementById('kpiCount').textContent = activeEntries.length;
+    document.getElementById('kpiAvg').textContent = eur.format(activeEntries.length ? totalBrutto/activeEntries.length : 0);
+    document.getElementById('entryCount').textContent = `${activeEntries.length} Buchung${activeEntries.length===1?'':'en'}`;
 
-    const dates = entries.map(e => e.datum).filter(Boolean).sort();
+    const dates = activeEntries.map(e => e.datum).filter(Boolean).sort();
     document.getElementById('dateRange').textContent = dates.length
       ? `Zeitraum: ${fmtDateDisplay(dates[0])} – ${fmtDateDisplay(dates[dates.length-1])}`
       : '';
 
     function safe(fn){ try{ fn(); }catch(err){ console.error(err); } }
 
-    if(entries.length === 0){
-      document.getElementById('mediumTableWrap').innerHTML = '<p class="empty-state">Noch keine Daten vorhanden.</p>';
-      document.getElementById('themaContent').innerHTML = '<p class="empty-state">Noch keine Daten vorhanden.</p>';
+    if(activeEntries.length === 0){
+      document.getElementById('mediumTableWrap').innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
+      document.getElementById('themaContent').innerHTML = '<p class="empty-state">Keine Daten für diesen Filter gefunden.</p>';
       if(mediumChartInst){ mediumChartInst.destroy(); mediumChartInst = null; }
       if(verlaufChartInst){ verlaufChartInst.destroy(); verlaufChartInst = null; }
     } else {
-      safe(() => renderCharts(totalBrutto));
-      safe(() => renderGroupTable(document.getElementById('themaContent'), groupSum('thema','brutto'), totalBrutto, 'Thema'));
+      safe(() => renderCharts(activeEntries, totalBrutto));
+      safe(() => renderGroupTable(document.getElementById('themaContent'), groupSum(activeEntries, 'thema','brutto'), totalBrutto, 'Thema'));
     }
-    safe(() => renderAlle());
+    safe(() => renderAlle(activeEntries));
   }
 
-  // Initiales Laden
   loadEntries();
 })();
 </script>
