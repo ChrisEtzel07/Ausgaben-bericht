@@ -196,6 +196,30 @@
     #panel-erfassen{ display:none !important; }
   }
   @media (prefers-reduced-motion: reduce){ .panel.active{ animation:none; } .toast{ transition:none; } }
+
+/* Custom Checkbox Dropdown Styles */
+.dropdown-wrapper { position: relative; }
+.custom-dropdown { position: relative; display: inline-block; }
+.dropdown-btn {
+  background: #fff; border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 14px; font-size: 13px; font-family: inherit; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-width: 180px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.dropdown-btn:hover { border-color: var(--teal-main); }
+.dropdown-content {
+  display: none; position: absolute; top: 100%; left: 0; z-index: 100;
+  background: #fff; border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto;
+  min-width: 220px; margin-top: 4px; padding: 6px 0;
+}
+.custom-dropdown.open .dropdown-content { display: block; }
+.dropdown-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  font-size: 13px; cursor: pointer; user-select: none;
+}
+.dropdown-item:hover { background: var(--teal-soft); }
+.dropdown-item input[type="checkbox"] { cursor: pointer; width: 15px; height: 15px; }
 </style>
 </head>
 <body>
@@ -230,26 +254,30 @@
     </div>
   </div>
 
-<!-- MULTI-FILTER LEISTE -->
-<div style="background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow); display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-  <div>
-    <span style="font-family:'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 6px;">Medien wälen:</span>
-    <select id="filterMedium" multiple style="min-width: 200px; height: 90px; padding: 6px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px;">
-    </select>
-  </div>
-
-  <div>
-    <span style="font-family:'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 6px;">Themen wählen:</span>
-    <select id="filterThema" multiple style="min-width: 200px; height: 90px; padding: 6px; border-radius: 4px; border: 1px solid var(--line); font-family: inherit; font-size: 13px;">
-    </select>
-  </div>
-
-  <div style="margin-left: auto; align-self: flex-start;">
-    <button id="resetFilterBtn" class="btn secondary" style="padding: 6px 12px; font-size: 12px;">Filter zurücksetzen</button>
-    <div style="font-size: 11px; color: var(--ink-soft); margin-top: 6px;">
-      💡 <strong>Tipp:</strong> Halte <code>Strg</code> (Windows) oder <code>Cmd</code> (Mac) gedrückt, um mehrere Einträge auszuwählen.
+<!-- MULTI-CHECKBOX DROPDOWN LEISTE -->
+<div style="background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: var(--shadow); display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+  
+  <div class="dropdown-wrapper">
+    <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Medien:</span>
+    <div class="custom-dropdown" id="dropdownMedium">
+      <button type="button" class="dropdown-btn" onclick="window.toggleDropdown('dropdownMedium')">
+        <span id="labelMedium">Alle Medien</span> ▾
+      </button>
+      <div class="dropdown-content" id="listMedium"></div>
     </div>
   </div>
+
+  <div class="dropdown-wrapper">
+    <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Themen:</span>
+    <div class="custom-dropdown" id="dropdownThema">
+      <button type="button" class="dropdown-btn" onclick="window.toggleDropdown('dropdownThema')">
+        <span id="labelThema">Alle Themen</span> ▾
+      </button>
+      <div class="dropdown-content" id="listThema"></div>
+    </div>
+  </div>
+
+  <button id="resetFilterBtn" class="btn secondary" style="padding: 8px 14px; font-size: 12px; margin-left: auto;">Filter zurücksetzen</button>
 </div>
 
   <nav class="tabs" role="tablist">
@@ -357,45 +385,72 @@
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  // ---- Multi-Filter Logik ----
-  function populateFilterDropdowns(){
-    const selMedium = document.getElementById('filterMedium');
-    const selThema = document.getElementById('filterThema');
-    if(!selMedium || !selThema) return;
+  // ---- Dropdown UI Functions ----
+  window.toggleDropdown = function(id) {
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('open');
+    document.querySelectorAll('.custom-dropdown').forEach(d => d.classList.remove('open'));
+    if(!isOpen) el.classList.add('open');
+  };
 
-    const selectedMedien = Array.from(selMedium.selectedOptions).map(o => o.value);
-    const selectedThemen = Array.from(selThema.selectedOptions).map(o => o.value);
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('.custom-dropdown')) {
+      document.querySelectorAll('.custom-dropdown').forEach(d => d.classList.remove('open'));
+    }
+  });
+
+  window.updateFilterUI = function() {
+    const checkedMed = Array.from(document.querySelectorAll('.filter-med-cb:checked')).map(c => c.value);
+    const checkedThem = Array.from(document.querySelectorAll('.filter-them-cb:checked')).map(c => c.value);
+
+    const lblMed = document.getElementById('labelMedium');
+    if(lblMed) lblMed.textContent = checkedMed.length === 0 ? 'Alle Medien' : `${checkedMed.length} ausgewählt`;
+
+    const lblThem = document.getElementById('labelThema');
+    if(lblThem) lblThem.textContent = checkedThem.length === 0 ? 'Alle Themen' : `${checkedThem.length} ausgewählt`;
+
+    renderAll();
+  };
+
+  function populateFilterDropdowns(){
+    const listMed = document.getElementById('listMedium');
+    const listThem = document.getElementById('listThema');
+    if(!listMed || !listThem) return;
 
     const medien = [...new Set(entries.map(e => e.medium).filter(Boolean))].sort();
     const themen = [...new Set(entries.map(e => e.thema).filter(Boolean))].sort();
 
-    selMedium.innerHTML = medien.map(m => `<option value="${escapeHtml(m)}"${selectedMedien.includes(m)?' selected':''}>${escapeHtml(m)}</option>`).join('');
-    selThema.innerHTML = themen.map(t => `<option value="${escapeHtml(t)}"${selectedThemen.includes(t)?' selected':''}>${escapeHtml(t)}</option>`).join('');
+    listMed.innerHTML = medien.map(m => `
+      <label class="dropdown-item">
+        <input type="checkbox" value="${escapeHtml(m)}" class="filter-med-cb" onchange="window.updateFilterUI()">
+        <span>${escapeHtml(m)}</span>
+      </label>
+    `).join('');
+
+    listThem.innerHTML = themen.map(t => `
+      <label class="dropdown-item">
+        <input type="checkbox" value="${escapeHtml(t)}" class="filter-them-cb" onchange="window.updateFilterUI()">
+        <span>${escapeHtml(t)}</span>
+      </label>
+    `).join('');
+
+    window.updateFilterUI();
   }
 
   function getFilteredEntries(){
-    const selMedEl = document.getElementById('filterMedium');
-    const selThemEl = document.getElementById('filterThema');
-
-    const selectedMedien = selMedEl ? Array.from(selMedEl.selectedOptions).map(o => o.value) : [];
-    const selectedThemen = selThemEl ? Array.from(selThemEl.selectedOptions).map(o => o.value) : [];
+    const checkedMed = Array.from(document.querySelectorAll('.filter-med-cb:checked')).map(c => c.value);
+    const checkedThem = Array.from(document.querySelectorAll('.filter-them-cb:checked')).map(c => c.value);
 
     return entries.filter(e => {
-      const matchMed = selectedMedien.length === 0 || selectedMedien.includes(e.medium);
-      const matchThem = selectedThemen.length === 0 || selectedThemen.includes(e.thema);
+      const matchMed = checkedMed.length === 0 || checkedMed.includes(e.medium);
+      const matchThem = checkedThem.length === 0 || checkedThem.includes(e.thema);
       return matchMed && matchThem;
     });
   }
 
-  // Event Listener für Filter
-  document.getElementById('filterMedium')?.addEventListener('change', () => renderAll());
-  document.getElementById('filterThema')?.addEventListener('change', () => renderAll());
   document.getElementById('resetFilterBtn')?.addEventListener('click', () => {
-    const selMed = document.getElementById('filterMedium');
-    const selThem = document.getElementById('filterThema');
-    if(selMed) Array.from(selMed.options).forEach(o => o.selected = false);
-    if(selThem) Array.from(selThem.options).forEach(o => o.selected = false);
-    renderAll();
+    document.querySelectorAll('.filter-med-cb, .filter-them-cb').forEach(cb => cb.checked = false);
+    window.updateFilterUI();
   });
 
   // ---- Laden von Google Sheets ----
