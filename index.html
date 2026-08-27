@@ -277,6 +277,15 @@
         <div class="dropdown-content" id="listThema"></div>
       </div>
     </div>
+<!-- DROPDOWN FÜR JAHR -->
+<div class="dropdown-wrapper">
+  <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Jahr:</span>
+  <select id="selectJahr" onchange="loadDataForYear(this.value)" style="padding: 8px 12px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); cursor: pointer; font-weight: 600;">
+    <option value="2026">2026</option>
+    <option value="2025" selected>2025</option>
+    <option value="2024">2024</option>
+  </select>
+</div>
 
     <button id="resetFilterBtn" class="btn secondary" style="padding: 8px 14px; font-size: 12px; margin-left: auto;">Filter zurücksetzen</button>
   </div>
@@ -367,6 +376,40 @@
 <div class="toast" id="toast"></div>
 
 <script>
+
+// Base-URL deiner veröffentlichten Google-Tabelle (ohne &gid=...)
+const SHEET_BASE_URL = 'https://docs.google.com/spreadsheets/d/e/DEINE_SHEET_ID_HIER/pub?output=csv';
+
+// Zuordnung: Jahr -> GID aus der Browser-Adresse in Google Sheets
+const YEAR_GIDS = {
+  '2026': '0', // GID vom Tabellenblatt 2026
+  '2025': '314738069',         // GID vom Tabellenblatt 2025 (meist 0 beim 1. Tab)
+  '2024': '362499645'  // GID vom Tabellenblatt 2024
+};
+
+// Funktion zum Laden der Daten für ein bestimmtes Jahr
+async function loadDataForYear(year) {
+  const gid = YEAR_GIDS[year];
+  if (!gid) {
+    showToast(`Keine Daten-ID für das Jahr ${year} hinterlegt.`);
+    return;
+  }
+
+  const url = `${SHEET_BASE_URL}&gid=${gid}`;
+
+  try {
+    const response = await fetch(url);
+    const csvText = await response.text();
+    
+    // Ruft deine bestehende Import- & Parse-Funktion auf
+    parseCSVAndRender(csvText); 
+    showToast(`Daten für ${year} geladen.`);
+  } catch (error) {
+    console.error('Fehler beim Laden:', error);
+    showToast('Fehler beim Abrufen der Tabellendaten.');
+  }
+}
+
 (function(){
   const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv';
 
