@@ -737,33 +737,61 @@
 
     if(!chartsAvailable()){ return; }
 
+    // --- TORTENDIAGRAMM FÜR MEDIEN (Top 5 + Sonstiges) ---
+    let pieData = [...mediumRows];
+    if(pieData.length > 5){
+      const top5 = pieData.slice(0, 5);
+      const sonstigesSum = pieData.slice(5).reduce((sum, r) => sum + r[1], 0);
+      if(sonstigesSum > 0){
+        top5.push(['Sonstiges', sonstigesSum]);
+      }
+      pieData = top5;
+    }
+
     const mediumCtx = document.getElementById('mediumChart');
     if(mediumChartInst) mediumChartInst.destroy();
-    if(mediumRows.length > 0){
+    if(pieData.length > 0){
       mediumChartInst = new Chart(mediumCtx, {
-        type: 'bar',
+        type: 'pie',
         data: {
-          labels: mediumRows.map(r => r[0]),
+          labels: pieData.map(r => r[0]),
           datasets: [{
-            label: 'Brutto',
-            data: mediumRows.map(r => r[1]),
-            backgroundColor: '#0F6E6A',
-            borderRadius: 4,
-            maxBarThickness: 42
+            data: pieData.map(r => r[1]),
+            backgroundColor: [
+              '#0F6E6A',
+              '#D98E2B',
+              '#2E5B88',
+              '#E76F51',
+              '#2A9D8F',
+              '#95A5A6'
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff'
           }]
         },
         options: {
-          indexAxis: 'y',
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display:false }, tooltip: { callbacks: { label: (ctx) => eurFull.format(ctx.parsed.x) } } },
-          scales: {
-            x: { ticks: { callback: (v) => eur.format(v) }, grid: { color:'#E5E9EC' } },
-            y: { grid: { display:false } }
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { boxWidth: 12, font: { size: 12 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const val = ctx.parsed;
+                  const pct = totalBrutto > 0 ? ((val / totalBrutto) * 100).toFixed(1) : 0;
+                  return ` ${ctx.label}: ${eurFull.format(val)} (${pct}%)`;
+                }
+              }
+            }
           }
         }
       });
     }
 
+    // --- VERLAUFSDIAGRAMM ---
     const monthly = monthlySum(activeEntries);
     const verlaufCtx = document.getElementById('verlaufChart');
     if(verlaufChartInst) verlaufChartInst.destroy();
