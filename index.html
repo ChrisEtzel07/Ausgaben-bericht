@@ -323,13 +323,31 @@
     </section>
 
     <!-- 3. VERLAUF -->
-    <section class="panel" id="panel-verlauf">
-      <h2 class="panel-title">Zeitverlauf</h2>
-      <p class="panel-sub">Monatliche Brutto-Ausgaben im Zeitverlauf.</p>
-      <div class="chart-card">
-        <div class="chart-box"><canvas id="verlaufChart"></canvas></div>
+<section class="panel" id="panel-verlauf">
+  <h2 class="panel-title">Zeitverlauf</h2>
+  <p class="panel-sub">Monatliche Brutto-Ausgaben im Zeitverlauf. Klicke auf einen Punkt im Diagramm oder wähle einen Monat aus.</p>
+
+  <!-- Verlaufsdiagramm -->
+  <div class="chart-card" style="margin-bottom: 20px;">
+    <div class="chart-box"><canvas id="verlaufChart"></canvas></div>
+  </div>
+
+  <!-- Monatsauswahl & Buchungstabelle -->
+  <div style="background: var(--surface); border-radius: 8px; padding: 16px; box-shadow: var(--shadow);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
+      <h3 style="margin: 0; font-size: 15px; color: var(--ink);">Buchungen des Monats</h3>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <label for="selectMonat" style="font-size: 12px; font-weight: 600; color: var(--ink-soft);">Monat filtern:</label>
+        <select id="selectMonat" style="padding: 6px 12px; font-size: 13px; border-radius: 6px; border: 1px solid var(--border); background: #fff; font-weight: 600; cursor: pointer;">
+          <option value="all">Alle Monate</option>
+        </select>
       </div>
-    </section>
+    </div>
+    
+    <!-- Tabelle für den gewählten Monat -->
+    <div id="verlaufTableWrap"></div>
+  </div>
+</section>
 
     <!-- 4. ALLE BUCHUNGEN -->
     <section class="panel" id="panel-alle">
@@ -376,6 +394,59 @@
 <div class="toast" id="toast"></div>
 
 <script>
+
+// Hilfsfunktion: Wandelt YYYY-MM in Monatsname (z. B. "Januar 2026") um
+function monthNameFull(ym) {
+  if (!ym) return '—';
+  const [y, m] = ym.split('-');
+  const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+  return d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+}
+
+// Rendert die Tabelle unter dem Verlaufsdiagramm
+function renderVerlaufTable(activeEntries, selectedMonth) {
+  const container = document.getElementById('verlaufTableWrap');
+  if (!container) return;
+
+  const filtered = (selectedMonth === 'all' || !selectedMonth)
+    ? activeEntries
+    : activeEntries.filter(e => e.datum && e.datum.startsWith(selectedMonth));
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="empty-state">Keine Buchungen für diesen Zeitraum gefunden.</p>';
+    return;
+  }
+
+  const sorted = [...filtered].sort((a, b) => (b.datum || '').localeCompare(a.datum || ''));
+  const monthTotal = filtered.reduce((s, e) => s + (Number(e.brutto) || 0), 0);
+
+  let html = `<table class="data-table"><thead><tr>
+    <th>Datum</th><th>Medium</th><th>Thema</th><th class="num">Brutto</th><th class="num">Netto</th>
+  </tr></thead><tbody>`;
+
+  sorted.forEach(e => {
+    html += `<tr>
+      <td>${fmtDateDisplay(e.datum)}</td>
+      <td>${escapeHtml(e.medium)}</td>
+      <td>${escapeHtml(e.thema)}</td>
+      <td class="num">${eurFull.format(Number(e.brutto) || 0)}</td>
+      <td class="num">${eurFull.format(Number(e.netto) || 0)}</td>
+    </tr>`;
+  });
+
+  html += `</tbody>
+  <tfoot>
+    <tr style="font-weight: bold; background: var(--teal-soft);">
+      <td colspan="3">Summe (${selectedMonth === 'all' ? 'Alle Monate' : monthNameFull(selectedMonth)})</td>
+      <td class="num">${eurFull.format(monthTotal)}</td>
+      <td></td>
+    </tr>
+  </tfoot>
+  </table>`;
+
+  container.innerHTML = html;
+}
+
 (function(){
   // Basis-URL deiner veröffentlichten Google-Tabelle
   const GOOGLE_SHEET_BASE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQf2gLtP4p-fjpX79pUWqlEzsEelki1C3QCQuc4UvIoimGdo1LMJRAsDLdbm_mBnCUyrJuQoscbQrdv/pub?output=csv';
@@ -746,29 +817,73 @@
       });
     }
 
-    // Verlauf
+    // --- VERLAUFSDIAGRAMM & MONATSTABELLE ---
     const monthly = monthlySum(activeEntries);
     const verlaufCtx = document.getElementById('verlaufChart');
-    if(verlaufChartInst) verlaufChartInst.destroy();
-    if(monthly.length > 0 && verlaufCtx){
+    const selectMonat = document.getElementById('selectMonat');
+
+    // Dropdown mit den verfügbaren Monaten befüllen
+    if (selectMonat) {
+      const currentVal = selectMonat.value;
+      const months = [...new Set(activeEntries.map(e => e.datum ? e.datum.slice(0,7) : null).filter(Boolean))].sort();
+      
+      selectMonat.innerHTML = '<option value="all">Alle Monate</option>' + months.map(m => `
+        <option value="${m}">${monthNameFull(m)}</option>
+      `).join('');
+
+      if (months.includes(currentVal)) {
+        selectMonat.value = currentVal;
+      } else {
+        selectMonat.value = 'all';
+      }
+
+      selectMonat.onchange = () => renderVerlaufTable(activeEntries, selectMonat.value);
+    }
+
+    if (verlaufChartInst) verlaufChartInst.destroy();
+    if (monthly.length > 0 && verlaufCtx) {
       verlaufChartInst = new Chart(verlaufCtx, {
         type: 'line',
         data: {
           labels: monthly.map(r => monthLabel(r[0])),
           datasets: [{
-            label: 'Brutto pro Monat', data: monthly.map(r => r[1]),
-            borderColor: '#D98E2B', backgroundColor: 'rgba(217,142,43,0.15)',
-            fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#D98E2B'
+            label: 'Brutto pro Monat',
+            data: monthly.map(r => r[1]),
+            borderColor: '#D98E2B',
+            backgroundColor: 'rgba(217,142,43,0.15)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: '#D98E2B'
           }]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display:false }, tooltip: { callbacks: { label: (ctx) => eurFull.format(ctx.parsed.y) } } },
-          scales: { y: { ticks: { callback: (v) => eur.format(v) }, grid: { color:'#E5E9EC' } }, x: { grid: { display:false } } }
+          responsive: true,
+          maintainAspectRatio: false,
+          // Klick auf Datenpunkt filtert die Tabelle unten direkt auf den Monat
+          onClick: (evt, elements) => {
+            if (elements.length > 0 && selectMonat) {
+              const idx = elements[0].index;
+              const monthKey = monthly[idx][0];
+              selectMonat.value = monthKey;
+              renderVerlaufTable(activeEntries, monthKey);
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => eurFull.format(ctx.parsed.y) } }
+          },
+          scales: {
+            y: { ticks: { callback: (v) => eur.format(v) }, grid: { color: '#E5E9EC' } },
+            x: { grid: { display: false } }
+          }
         }
       });
     }
-  }
+
+    // Tabelle initial zeichnen
+    renderVerlaufTable(activeEntries, selectMonat ? selectMonat.value : 'all');
 
   function renderAll(){
     const activeEntries = getFilteredEntries();
