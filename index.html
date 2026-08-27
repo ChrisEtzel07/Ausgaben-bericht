@@ -281,8 +281,8 @@
 <div class="dropdown-wrapper">
   <span style="font-family:'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px;">Jahr:</span>
   <select id="selectJahr" onchange="loadDataForYear(this.value)" style="padding: 8px 12px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--ink); cursor: pointer; font-weight: 600;">
-    <option value="2026">2026</option>
-    <option value="2025" selected>2025</option>
+    <option value="2026" selected>2026</option>
+    <option value="2025">2025</option>
     <option value="2024">2024</option>
   </select>
 </div>
@@ -793,7 +793,7 @@
 
   // Erstes Jahr beim Laden automatisch aufrufen (z.B. 2025)
   const selectJahr = document.getElementById('selectJahr');
-  const initialYear = selectJahr ? selectJahr.value : '2025';
+  const initialYear = selectJahr ? selectJahr.value : '2026';
   window.loadDataForYear(initialYear);
 
 })();
