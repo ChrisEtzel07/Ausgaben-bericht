@@ -268,6 +268,31 @@
   }
 }
 
+
+/* Suchfeld oben im Dropdown */
+.dropdown-search {
+  width: 100%;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+  outline: none;
+  background: #fff;
+}
+
+.dropdown-search:focus {
+  border-color: #0F6E6A;
+  box-shadow: 0 0 0 2px rgba(15, 110, 106, 0.15);
+}
+
+/* Behälter für die Checkboxen mit Scrollbar */
+.dropdown-items-container {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 </style>
 </head>
 <body>
@@ -280,7 +305,7 @@
       <span class="stand" id="standDate">Stand: —</span>
     </div>
     <h1>Ausgabenübersicht</h1>
-    <p class="lede">Alle Ausgaben der PR-Abteilung nach Medium, Thema und Zeitverlauf | Zusammengestellt für die Geschäftsführung. </p>
+    <p class="lede">Alle Buchungen nach Medium, Thema und Zeitverlauf — zusammengestellt für die Präsentation vor der Geschäftsführung.</p>
 
     <div class="kpi-row">
       <div class="kpi">
@@ -489,27 +514,6 @@
     return d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   }
 
-// ---- CSV Export ----
-  window.exportCSV = function() {
-    const filtered = getFilteredEntries();
-    if (!filtered || !filtered.length) {
-      if (typeof showToast === 'function') showToast('Keine Daten zum Exportieren');
-      return;
-    }
-
-    let csv = 'Datum;Medium;Thema;Brutto;Netto\n';
-    filtered.forEach(e => {
-      csv += `"${e.datum || ''}";"${e.medium || ''}";"${e.thema || ''}";"${e.brutto || 0}";"${e.netto || 0}"\n`;
-    });
-
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `Export_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-  };
-
-
   // ---- Jahreswechsel per Dropdown ----
   window.loadDataForYear = async function(year) {
     const gid = YEAR_GIDS[year];
@@ -551,6 +555,19 @@
     }
   });
 
+  // ---- Suchfunktion innerhalb der Dropdowns ----
+  window.filterDropdownList = function(containerId, query) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const items = container.querySelectorAll('.dropdown-item');
+    const q = query.toLowerCase().trim();
+
+    items.forEach(item => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(q) ? 'flex' : 'none';
+    });
+  };
+
   window.updateFilterUI = function() {
     const checkedMed = Array.from(document.querySelectorAll('.filter-med-cb:checked')).map(c => c.value);
     const checkedThem = Array.from(document.querySelectorAll('.filter-them-cb:checked')).map(c => c.value);
@@ -572,19 +589,35 @@
     const medien = [...new Set(entries.map(e => e.medium).filter(Boolean))].sort();
     const themen = [...new Set(entries.map(e => e.thema).filter(Boolean))].sort();
 
-    listMed.innerHTML = medien.map(m => `
-      <label class="dropdown-item">
-        <input type="checkbox" value="${escapeHtml(m)}" class="filter-med-cb" onchange="window.updateFilterUI()">
-        <span>${escapeHtml(m)}</span>
-      </label>
-    `).join('');
+    // Medien-Dropdown befüllen mit Suchleiste
+    listMed.innerHTML = `
+      <div style="padding: 4px 4px 6px 4px; position: sticky; top: 0; background: #ffffff; z-index: 2;">
+        <input type="text" class="dropdown-search" placeholder="Medien suchen..." oninput="window.filterDropdownList('listMedium', this.value)" onclick="event.stopPropagation()">
+      </div>
+      <div class="dropdown-items-container">
+        ${medien.map(m => `
+          <label class="dropdown-item">
+            <input type="checkbox" value="${escapeHtml(m)}" class="filter-med-cb" onchange="window.updateFilterUI()">
+            <span>${escapeHtml(m)}</span>
+          </label>
+        `).join('')}
+      </div>
+    `;
 
-    listThem.innerHTML = themen.map(t => `
-      <label class="dropdown-item">
-        <input type="checkbox" value="${escapeHtml(t)}" class="filter-them-cb" onchange="window.updateFilterUI()">
-        <span>${escapeHtml(t)}</span>
-      </label>
-    `).join('');
+    // Themen-Dropdown befüllen mit Suchleiste
+    listThem.innerHTML = `
+      <div style="padding: 4px 4px 6px 4px; position: sticky; top: 0; background: #ffffff; z-index: 2;">
+        <input type="text" class="dropdown-search" placeholder="Themen suchen..." oninput="window.filterDropdownList('listThema', this.value)" onclick="event.stopPropagation()">
+      </div>
+      <div class="dropdown-items-container">
+        ${themen.map(t => `
+          <label class="dropdown-item">
+            <input type="checkbox" value="${escapeHtml(t)}" class="filter-them-cb" onchange="window.updateFilterUI()">
+            <span>${escapeHtml(t)}</span>
+          </label>
+        `).join('')}
+      </div>
+    `;
 
     window.updateFilterUI();
   }
@@ -781,7 +814,7 @@
     });
     html += `</tbody>
     <tfoot>
-      <tr style="font-weight: bold; background: var(--teal-soft);">
+      <tr style="font-weight: bold; background: #f8fafc;">
         <td colspan="3">Gesamtsumme (gefiltert)</td>
         <td class="num">${eurFull.format(totalBruttoFiltered)}</td>
         <td></td>
@@ -823,7 +856,7 @@
 
     html += `</tbody>
     <tfoot>
-      <tr style="font-weight: bold; background: var(--teal-soft);">
+      <tr style="font-weight: bold; background: #f8fafc;">
         <td colspan="3">Summe (${selectedMonth === 'all' ? 'Alle Monate' : monthNameFull(selectedMonth)})</td>
         <td class="num">${eurFull.format(monthTotal)}</td>
         <td></td>
@@ -953,6 +986,26 @@
     renderGroupTable(document.getElementById('themaContent'), groupSum(activeEntries, 'thema','brutto'), totalBrutto, 'Thema');
     renderAlle(activeEntries);
   }
+
+  // ---- CSV Export ----
+  window.exportCSV = function() {
+    const filtered = getFilteredEntries();
+    if (!filtered || !filtered.length) {
+      if (typeof showToast === 'function') showToast('Keine Daten zum Exportieren');
+      return;
+    }
+
+    let csv = 'Datum;Medium;Thema;Brutto;Netto\n';
+    filtered.forEach(e => {
+      csv += `"${e.datum || ''}";"${e.medium || ''}";"${e.thema || ''}";"${e.brutto || 0}";"${e.netto || 0}"\n`;
+    });
+
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Export_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  };
 
   // Initialer Startwert: 2026
   const selectJahr = document.getElementById('selectJahr');
